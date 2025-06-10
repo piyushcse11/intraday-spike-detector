@@ -48,4 +48,3 @@ st.markdown(f"**Last updated:** {datetime.now().strftime('%H:%M:%S')}")
 # Auto-refresh note
 st.info("Auto-refreshes every 60 seconds | Simulated Intraday Data")
 
-can you make this more interative using html
