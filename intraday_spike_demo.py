@@ -3,66 +3,65 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-st.set_page_config(page_title="Intraday Spike Detector", layout="wide")
-st.title("📈 Intraday Stock Spike Demo (Live NSE Data)")
-st.caption("Auto-refreshes every 60 seconds | Real NSE data")
+st.set_page_config(page_title="Alpha Vantage Demo", layout="wide")
+st.title("📊 Alpha Vantage Intraday Spike Detector")
 
-nse_url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Accept": "*/*",
-    "Referer": "https://www.nseindia.com/",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+API_KEY = "XO20V3XK9AOSNLEG"  # replace with your real key
+SYMBOLS = ["RELIANCE.BSE", "TCS.BSE", "HDFCBANK.BSE"]
+BASE_URL = "https://www.alphavantage.co/query"
 
 @st.cache_data(ttl=60)
-def get_live_data():
+def get_intraday_data(symbol):
     try:
-        session = requests.Session()
-        # Warm-up request to get cookies
-        session.get("https://www.nseindia.com", headers=headers, timeout=10)
-        # Actual data request
-        response = session.get(nse_url, headers=headers, timeout=10)
-        data = response.json().get("data", [])
+        params = {
+            "function": "TIME_SERIES_INTRADAY",
+            "symbol": symbol,
+            "interval": "5min",
+            "apikey": API_KEY,
+            "outputsize": "compact"
+        }
+        response = requests.get(BASE_URL, params=params)
+        data = response.json()
+        timeseries = data.get("Time Series (5min)", {})
+        df = pd.DataFrame.from_dict(timeseries, orient="index")
+        df = df.astype(float).sort_index(ascending=False)
+        latest = df.iloc[0]
+        open_price = latest["1. open"]
+        current_price = latest["4. close"]
+        change = ((current_price - open_price) / open_price) * 100
 
-        rows = []
-        for stock in data:
-            name = stock.get("symbol")
-            open_price = stock.get("open")
-            current_price = stock.get("lastPrice")
-            if not open_price or not current_price or open_price == 0:
-                continue
-            change = ((current_price - open_price) / open_price) * 100
+        if 1 <= change <= 3:
+            signal = "BUY"
+        elif change > 8.5:
+            signal = "SELL"
+        elif change > 3:
+            signal = "STRONG BUY"
+        else:
+            signal = "WAIT"
 
-            if 1 <= change <= 3:
-                signal = "BUY"
-            elif change > 8.5:
-                signal = "SELL"
-            elif change > 3:
-                signal = "STRONG BUY"
-            else:
-                signal = "WAIT"
-
-            rows.append({
-                "Stock": name,
-                "Open Price": round(open_price, 2),
-                "Current Price": round(current_price, 2),
-                "Change %": round(change, 2),
-                "Signal": signal,
-            })
-
-        return pd.DataFrame(rows)
+        return {
+            "Stock": symbol,
+            "Open Price": round(open_price, 2),
+            "Current Price": round(current_price, 2),
+            "Change %": round(change, 2),
+            "Signal": signal
+        }
 
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
-        return pd.DataFrame()
+        return {
+            "Stock": symbol,
+            "Open Price": 0,
+            "Current Price": 0,
+            "Change %": 0,
+            "Signal": f"Error: {e}"
+        }
 
-# Fetch and display data
-df = get_live_data()
+data = [get_intraday_data(symbol) for symbol in SYMBOLS]
+df = pd.DataFrame(data)
 
 if not df.empty:
     st.dataframe(df, use_container_width=True)
 else:
-    st.warning("No data to display. Try again later.")
+    st.warning("No data to display.")
 
 st.markdown(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
