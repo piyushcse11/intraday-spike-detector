@@ -1,67 +1,49 @@
 import streamlit as st
 import pandas as pd
-import requests
+import random
 from datetime import datetime
+import time
 
-st.set_page_config(page_title="Alpha Vantage Demo", layout="wide")
-st.title("📊 Alpha Vantage Intraday Spike Detector")
+st.set_page_config(page_title="📈 Intraday Spike Detector (Mock)", layout="wide")
+st.title("📈 Intraday Spike Detector (Simulated Data)")
 
-API_KEY = "XO20V3XK9AOSNLEG"  # replace with your real key
-SYMBOLS = ["RELIANCE.BSE", "TCS.BSE", "HDFCBANK.BSE"]
-BASE_URL = "https://www.alphavantage.co/query"
+# Stock list for simulation
+stocks = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "LT", "SBIN", "BHARTIARTL", "HINDUNILVR", "AXISBANK"]
 
+# Generate random realistic data @ 60 seconds
 @st.cache_data(ttl=60)
-def get_intraday_data(symbol):
-    try:
-        params = {
-            "function": "TIME_SERIES_INTRADAY",
-            "symbol": symbol,
-            "interval": "5min",
-            "apikey": API_KEY,
-            "outputsize": "compact"
-        }
-        response = requests.get(BASE_URL, params=params)
-        data = response.json()
-        timeseries = data.get("Time Series (5min)", {})
-        df = pd.DataFrame.from_dict(timeseries, orient="index")
-        df = df.astype(float).sort_index(ascending=False)
-        latest = df.iloc[0]
-        open_price = latest["1. open"]
-        current_price = latest["4. close"]
-        change = ((current_price - open_price) / open_price) * 100
+def generate_mock_data():
+    data = []
+    for stock in stocks:
+        open_price = round(random.uniform(1000, 3000), 2)
+        movement = random.uniform(-2, 12)  # allow some -ve, mostly +ve
+        current_price = round(open_price * (1 + movement / 100), 2)
+        change_pct = round((current_price - open_price) / open_price * 100, 2)
 
-        if 1 <= change <= 3:
+        if 1 <= change_pct <= 3:
             signal = "BUY"
-        elif change > 8.5:
+        elif change_pct > 9:
             signal = "SELL"
-        elif change > 3:
+        elif change_pct > 3:
             signal = "STRONG BUY"
         else:
             signal = "WAIT"
 
-        return {
-            "Stock": symbol,
-            "Open Price": round(open_price, 2),
-            "Current Price": round(current_price, 2),
-            "Change %": round(change, 2),
+        data.append({
+            "Stock": stock,
+            "Open Price": open_price,
+            "Current Price": current_price,
+            "Change %": change_pct,
             "Signal": signal
-        }
+        })
+    return pd.DataFrame(data)
 
-    except Exception as e:
-        return {
-            "Stock": symbol,
-            "Open Price": 0,
-            "Current Price": 0,
-            "Change %": 0,
-            "Signal": f"Error: {e}"
-        }
+# Display table
+df = generate_mock_data()
+st.dataframe(df, use_container_width=True)
 
-data = [get_intraday_data(symbol) for symbol in SYMBOLS]
-df = pd.DataFrame(data)
+# Timestamp
+st.markdown(f"**Last updated:** {datetime.now().strftime('%H:%M:%S')}")
 
-if not df.empty:
-    st.dataframe(df, use_container_width=True)
-else:
-    st.warning("No data to display.")
-
-st.markdown(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
+# Auto-refresh note
+st.info("Auto-refreshes every 60 seconds | Simulated Intraday Data")
